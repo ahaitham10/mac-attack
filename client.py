@@ -1,26 +1,44 @@
-import hashlib
-import struct
+import hashpumpy
+from server import generate_mac, verify
 
 def perform_attack():
-    # YOUR EXACT VALUES
-    secret_key = b"supersecretkey"  # 13 bytes
-    original_msg = b"amount=100&to=alice"
-    original_mac = "614d28d808af46d3702fe35fae67267c"  # Your MAC
-    append_data = b"&admin=true"
+    # Original message
+    intercepted_message = b"amount=100&to=alice"
+    intercepted_mac = generate_mac(intercepted_message)
     
-    # 1. MANUAL PADDING CALCULATION
-    original_length = len(secret_key) + len(original_msg)
-    padding = b'\x80' + b'\x00' * ((56 - (original_length + 1) % 64) % 64)
-    padding += struct.pack('<Q', original_length * 8)  # 64-bit length
+    print("\n=== Original Message and MAC ===")
+    print(f"Message: {intercepted_message.decode()}")
+    print(f"MAC: {intercepted_mac}")
     
-    # 2. BUILD FORGED MESSAGE
-    forged_msg = original_msg + padding + append_data
+    # Data to append
+    data_to_append = b"&admin=true"
     
-    # 3. CALCULATE NEW MAC (requires knowing the key - for demo only!)
-    forged_mac = hashlib.md5(secret_key + forged_msg).hexdigest()
+    # Try different key lengths
+    for key_length in range(8, 17):
+        print(f"\nTrying key length: {key_length}")
+        
+        # Perform length extension attack using hashpump
+        new_mac, new_message = hashpumpy.hashpump(
+            intercepted_mac,
+            intercepted_message.decode(),
+            data_to_append.decode(),
+            key_length
+        )
+        
+        print("\n=== Length Extension Attack Results ===")
+        print(f"Forged message: {new_message}")
+        print(f"Forged MAC: {new_mac}")
+        
+        # Verify the forged message
+        print("\n--- Verifying forged message ---")
+        if verify(new_message.encode(), new_mac):
+            print("Attack successful! Forged message accepted.")
+            print("This demonstrates the vulnerability of the insecure MAC implementation.")
+            return
+        else:
+            print("Attack failed for this key length.")
     
-    print("SUCCESS! Use these in server.py:")
-    print("Forged Message:", forged_msg)
-    print("Forged MAC:", forged_mac)
+    print("\nAttack failed for all attempted key lengths.")
 
-perform_attack()
+if __name__ == "__main__":
+    perform_attack() 
